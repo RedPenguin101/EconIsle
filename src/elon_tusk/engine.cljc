@@ -1,16 +1,10 @@
 (ns elon-tusk.engine
-  #?(:cljs (:require-macros [snek.core :refer [defsnek defn]]
-                            [fbc-utils.core :refer [forv]]))
-  (:refer-clojure :rename {defn      core-defn
-                           defmethod core-defmethod})
+  #?(:cljs (:require-macros [fbc-utils.core :refer [forv]]))
   (:require [fbc-utils.core :as ut]
             [fbc-utils.debug :as db]
-            [clojure.pprint :as pp]
             [snek.core :as sn]
-            #?(:clj [snek.core :refer [defsnek defn]])
+            [clojure.pprint :as pp]
             #?(:clj [fbc-utils.core :refer [forv]])))
-
-(defsnek)
 
 (def foods {:mammoth {:id    :mammoth
                       :ease  4
@@ -66,7 +60,6 @@
 
 (def agents-num 40)
 
-(defsnek -> state-snek)
 (defn init-state []
   {:agents      (reduce ut/push-with-id
                         {}
@@ -109,7 +102,6 @@
         starting-money        (get-in state [:agents agent-id :money])]
     (target-formula cost-others max-amount starting-money max-price)))
 
-(defsnek [{:owned 0 :price 0}] 0 -> 0)
 (defn calc-affordability [ownership money]
   (let [min-food-owned (:owned (apply min-key :owned ownership))]
     (loop [min-food-owned min-food-owned
@@ -140,7 +132,6 @@
         money     (get-in state [:agents agent-id :money])]
     (calc-affordability ownership money)))
 
-(defsnek state-snek {:_ nil} -> state-snek)
 (defn work [{:keys [agents]
              :as   state}
             {:keys [vacuum]
@@ -153,12 +144,12 @@
             (let [[food produced] (apply max-key
                                          (fn [[food productivity]]
                                            (* productivity (get-in foods [food :price])))
-                                         (forv [food (keys foods)]
-                                               [food (if (and vacuum (= name "elon-tusk"))
-                                                       (if (= food :ketchup)
-                                                         150
-                                                         1)
-                                                       (get-in acc [:agent-foods [id food] :productivity]))]))
+                                         (for [food (keys foods)]
+                                           [food (if (and vacuum (= name "elon-tusk"))
+                                                   (if (= food :ketchup)
+                                                     150
+                                                     1)
+                                                   (get-in acc [:agent-foods [id food] :productivity]))]))
                   owned           (get-in acc [:agent-foods [id food] :owned])
                   amount          (+ owned produced)
                   acc             (assoc-in acc [:agent-foods [id food] :owned] amount)
@@ -177,7 +168,6 @@
           state
           (shuffle (vals agents))))
 
-(defsnek state-snek -> state-snek)
 (defn eat [{:keys [agents]
             :as   state}]
   (reduce (fn [acc {:keys [id] ;;iterate through agents
@@ -235,7 +225,6 @@
           state
           (shuffle (vals agents))))
 
-(defsnek state-snek {:_ nil} -> state-snek)
 (defn sleep [{:keys [foods]
               :as   state}
              {:keys [mammoth-price]
@@ -268,7 +257,6 @@
                                                  0.95)))})}
                         foods))))
 
-(defsnek state-snek {:_ nil} -> state-snek)
 (defn turn [state options]
   (-> state
       (work options)
