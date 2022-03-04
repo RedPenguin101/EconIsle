@@ -13,3 +13,7 @@ pom.xml
 .nrepl-port
 checkouts
 .cpcache
+.clj-kondo
+.calva
+.portal
+.lsp
