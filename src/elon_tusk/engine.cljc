@@ -245,7 +245,7 @@
               (fn [af]
                 (into {}
                       (for [[k v] af]
-                        [k  (update v :owned (fn [n] 0 #_(int (* n 0.75))))])))) 
+                        [k  (update v :owned (fn [n] 0 #_(int (* n 0.75))))]))))
       (assoc :orders {})
       (assoc :foods
              (sn/modify {:_ (fn [{:keys [price
@@ -266,8 +266,7 @@
                                                (if (= order-cur order-num)
                                                  1.05
                                                  0.95)))})}
-                        foods))
-      ))
+                        foods))))
 
 (defsnek state-snek {:_ nil} -> state-snek)
 (defn turn [state options]
@@ -315,4 +314,5 @@
                          (last states)))
     nil))
 
-;; (main)
+(comment
+  (main))
