@@ -1,10 +1,39 @@
 (ns elon-tusk.engine
-  #?(:cljs (:require-macros [fbc-utils.core :refer [forv]]))
   (:require [fbc-utils.core :as ut]
-            [fbc-utils.debug :as db]
             [snek.core :as sn]
-            [clojure.pprint :as pp]
-            #?(:clj [fbc-utils.core :refer [forv]])))
+            [clojure.pprint :as pp]))
+
+;;;;;;;;;;;;; fbc-utils inline ;;;;;;;;;
+
+(defn key-max [db]
+  (apply max (keys db)))
+
+(defn next-key [db]
+  (if (seq db)
+    (inc (key-max db))
+    0))
+
+(defn push-with-id [db obj]
+  (let [id (next-key db)]
+    (assoc db id (assoc obj :id id))))
+
+(defn sqrt [x] (Math/sqrt x))
+(defn square [x] (* x x))
+(defn ceil [x] (Math/ceil x))
+
+;; Logging ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def log-atom (atom []))
+
+(defn log [item]
+  (swap! log-atom conj item))
+
+(defn purge-log []
+  (let [k @log-atom]
+    (reset! log-atom [])
+    k))
+
+;; Config ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (def foods {:mammoth {:id    :mammoth
                       :ease  4
@@ -20,48 +49,21 @@
                       :order 3}})
 
 (def food-num (count foods))
-
 (def stonage-word-1 [:saber :rock :arrow :mammoth :fur :sling])
-
 (def stonage-word-2 [:skull :head :chest :foot :nose :arms])
-
 (def stonage-full-names [:elon-tusk :king-fred :yakyak :ogg :biggo :berf :snuud :yikyik :rokko :yukko])
 
-(def state-snek {:foods       {:_ {:id        :_
-                                   :price     0
-                                   :order-cur 0
-                                   :order-num 0}}
-                 :agents      {0 {:name  ""
-                                  :id    0
-                                  :money 0}}
-                 :agent-foods {[0 :_] {:id           [0 :_]
-                                       :productivity 0
-                                       :owned        0}}
-                 :orders      {[:_ 0] {:id       [:_ 0]
-                                       :agent-id 0
-                                       :amount 0}}})
-
-(def log-atom (atom []))
-
-(defn log [item]
-  (swap! log-atom conj item))
-
-(defn purge-log []
-  (let [k @log-atom]
-    (reset! log-atom [])
-    k))
-
 (def max-production 10)
-
 (def money-supply-per-agent 1000)
+(def agents-num 40)
+
+;; State initialization ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn gen-agent []
   {:money money-supply-per-agent})
 
-(def agents-num 40)
-
 (defn init-state []
-  {:agents      (reduce ut/push-with-id
+  {:agents      (reduce push-with-id
                         {}
                         (map (fn [agent nam]
                                (assoc agent :name nam))
@@ -83,8 +85,18 @@
                                :order-cur 0
                                :order-num 0}]))})
 
+(comment
+  ((:agents (init-state)) 5) ; {:money 1000, :name "berf", :id 5}
+  (first (:agent-foods (init-state))) ; [[39 :lettuce] {:id [39 :lettuce], :productivity 2, :owned 0}]
+  (:ketchup (:foods (init-state))) ; {:id :ketchup, :price 150, :order-cur 0, :order-num 0}
+  )
+
+;; Burger making calculations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn target-formula [cost-others max-amount money max-price]
-  (ut/ceil (/ (- (ut/sqrt (+ (* 4 max-amount cost-others max-price) (* 4 cost-others money) (ut/square max-price))) max-price) (* 2 cost-others))))
+  (ceil (/ (- (sqrt (+ (* 4 max-amount cost-others max-price) (* 4 cost-others money) (square max-price))) max-price) (* 2 cost-others))))
+
+(target-formula 20 100 500 20)
 
 (defn target-burgers-optimum-formula ;;How many burgers can the agent expect to make, given owned food & money, assuming agent doesn't buy their most abundant food.
   [{:keys [foods]
@@ -131,6 +143,8 @@
                      :price   (get-in state [:foods food-id :price])})
         money     (get-in state [:agents agent-id :money])]
     (calc-affordability ownership money)))
+
+;; model loop ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn work [{:keys [agents]
              :as   state}
@@ -302,5 +316,58 @@
                          (last states)))
     nil))
 
-(comment
-  (main))
+(def turn-no-opt #(turn % {}))
+(defn main2 []
+  (take 10 (iterate turn-no-opt (init-state))))
+
+
+(defn get-agents-foods [state agent-id]
+  (into {} (filter (fn [[[k]]] (= agent-id k)) (:agent-foods state))))
+
+(defn get-agents-orders [state lookup-agent-id]
+  (filter (fn [{:keys [id agent-id]}]
+            (or (= lookup-agent-id (second id))
+                (= lookup-agent-id agent-id)))
+          (vals (:orders state))))
+
+(defn summarize-agent-6 [state]
+  {:agent (get-in state [:agents 6])
+   :agent-food (get-agents-foods state 6)
+   :orders (get-agents-orders state 6)})
+
+(def ten-turns (last (take 10 (iterate turn-no-opt (init-state)))))
+(def after-working (work ten-turns {}))
+
+(summarize-agent-6 ten-turns)
+(summarize-agent-6 after-working)
+
+(def after-eating (eat after-working))
+(summarize-agent-6 after-eating)
+
+(def after-sleeping (sleep after-eating {}))
+(summarize-agent-6 after-sleeping)
+
+(:foods after-eating)
+; {:mammoth
+;  {:id :mammoth,
+;   :order-cur 14,
+;   :order-num 14,
+;   :price 210.53740073994146},
+;  :ketchup
+;  {:id :ketchup, :order-cur 5, :order-num 5, :price 94.53741145869138},
+;  :lettuce
+;  {:id :lettuce,
+;   :order-cur 8,
+;   :order-num 11,
+;   :price 127.64411248271482},
+;  :bread
+;  {:id :bread, :order-cur 8, :order-num 10, :price 104.48871792802733}}
+(:foods after-sleeping)
+; {:mammoth
+;  {:id :mammoth, :order-cur 0, :order-num 0, :price 221.06427077693854},
+;  :ketchup
+;  {:id :ketchup, :order-cur 0, :order-num 0, :price 99.26428203162595},
+;  :lettuce
+;  {:id :lettuce, :order-cur 0, :order-num 0, :price 121.26190685857907},
+;  :bread
+;  {:id :bread, :order-cur 0, :order-num 0, :price 99.26428203162595}}
